@@ -1,8 +1,10 @@
-import { SEED_ROWS } from './seed'
-import type { EntryRow } from './types'
+import { SEED_DUTY_LOGS, SEED_ROWS } from './seed'
+import type { DutyLog, EntryRow } from './types'
 
 // 本地持久化：数据放在 localStorage 里，刷新、关掉再打开都还在。
 const STORAGE_KEY = 'airport-ground-ops:entries'
+// 在岗确认记录单独存一份，班组数据重置时不受影响。
+const DUTY_LOG_KEY = 'airport-ground-ops:duty-logs'
 
 function clone<T>(value: T): T {
   return JSON.parse(JSON.stringify(value)) as T
@@ -56,4 +58,38 @@ export function resetRows(key: string): EntryRow[] {
 
 export function storageKey(): string {
   return STORAGE_KEY
+}
+
+let dutyLogCache: DutyLog[] | null = null
+
+export function listDutyLogs(): DutyLog[] {
+  if (dutyLogCache === null) {
+    dutyLogCache = readDutyLogs()
+  }
+  return dutyLogCache
+}
+
+export function saveDutyLogs(logs: DutyLog[]): void {
+  dutyLogCache = logs
+  if (typeof window !== 'undefined' && window.localStorage) {
+    window.localStorage.setItem(DUTY_LOG_KEY, JSON.stringify(logs))
+  }
+}
+
+function readDutyLogs(): DutyLog[] {
+  const fallback = clone(SEED_DUTY_LOGS)
+  if (typeof window === 'undefined' || !window.localStorage) {
+    return fallback
+  }
+  const raw = window.localStorage.getItem(DUTY_LOG_KEY)
+  if (!raw) {
+    window.localStorage.setItem(DUTY_LOG_KEY, JSON.stringify(fallback))
+    return fallback
+  }
+  try {
+    return JSON.parse(raw) as DutyLog[]
+  } catch {
+    window.localStorage.setItem(DUTY_LOG_KEY, JSON.stringify(fallback))
+    return fallback
+  }
 }
