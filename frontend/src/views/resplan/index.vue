@@ -63,6 +63,48 @@
       </tbody>
     </table>
 
+    <section class="panel">
+      <h3>人员需求清单 · 班组排班同源</h3>
+      <p class="note">
+        在岗人数直接读保障班组登记，与班组排班同源，调度不另行维护；当前在岗班组
+        {{ dutySummary.teams }} 个，在岗人数合计 {{ dutySummary.headcount }} 人。
+        <template v-if="heldCount">有 {{ heldCount }} 条排班记录待调整，请到保障班组页面处理。</template>
+      </p>
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>排班编号</th>
+            <th>班次时段</th>
+            <th>班组名称</th>
+            <th>负责区域</th>
+            <th>需求人数</th>
+            <th>在岗人数</th>
+            <th>借调明细</th>
+            <th>缺口</th>
+            <th>状态</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-for="record in shiftRecords" :key="record.id">
+            <td>{{ record.排班编号 }}</td>
+            <td>{{ record.班次时段 }}</td>
+            <td>{{ record.班组名称 }}</td>
+            <td>{{ record.负责区域 }}</td>
+            <td>{{ record.需求人数 }}</td>
+            <td>{{ record.在岗人数 }}</td>
+            <td>{{ record.借调明细 || '—' }}</td>
+            <td>{{ record.缺口 > 0 ? `缺 ${record.缺口} 人` : '—' }}</td>
+            <td>
+              <span class="badge" :class="record.status === '已下发' ? 'ok' : 'hold'">{{ record.status }}</span>
+            </td>
+          </tr>
+          <tr v-if="!shiftRecords.length">
+            <td colspan="9" class="empty-state">暂无排班下发记录</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
     <footer class="page-foot">
       <span>共 {{ total }} 条保障资源调度记录</span>
       <span v-if="errorMessage" class="error-text">{{ errorMessage }}</span>
@@ -79,6 +121,8 @@ import {
   moduleMeta,
   runAction as applyAction,
 } from '@/api/local-service'
+import { listShiftRecordViews, onDutySummary } from '@/api/team-schedule'
+import type { ShiftRecordView } from '@/api/team-schedule'
 import type { EntryRow } from '@/data/types'
 
 const meta = moduleMeta('resplan')
@@ -92,6 +136,10 @@ const total = ref(0)
 const errorMessage = ref('')
 const filters = ref<Record<string, string>>({})
 const filterFields = columns.slice(0, 3)
+// 班组排班同源数据：在岗人数与人员需求清单都读班组排班这一份
+const shiftRecords = ref<ShiftRecordView[]>([])
+const dutySummary = ref({ teams: 0, headcount: 0 })
+const heldCount = computed(() => shiftRecords.value.filter((item) => item.status === '待调整').length)
 const statusSummary = computed(() =>
   statuses.map((status: string) => ({
     status,
@@ -128,6 +176,8 @@ function reload() {
     const payload = listEntries(meta.key, filters.value)
     rows.value = payload.items
     total.value = payload.total
+    shiftRecords.value = listShiftRecordViews()
+    dutySummary.value = onDutySummary()
   } catch (error) {
     errorMessage.value = error instanceof Error ? error.message : '保障资源调度列表读取失败'
   }
